@@ -1,0 +1,87 @@
+---
+title: "Prediction of quality of exercise"
+author: "Bhanuday Birla"
+date: "Sunday, August 7, 2016"
+output: html_document
+---
+**Overview** 
+
+People do exercise to achieve good health and physique.They also used to qunatify the amount of exercise they are doing but they dont know if they are doing it the right way. This report has an objective to classify the fairness of weight lifting exercise. For the classification, we will use some machine learning techniques for training on data and then the trained model can be used to predict class of fairness of exercise. The collected data is of various parameters measured by different sensors fitted to a person's various body parts. These measurements are taken with or without making various mistakes in exercise. On the basis of various mistakes and perfectly done exercise, every observation was labled with a class. We have some observations with known class label, which we will use for training and some without the class will be used for prediction. 
+
+**Data Preparation**
+
+On looking the dimension of data we found that there are 19622 observations of 160 variables in training set. We need to partition this data into two partitions namely training and testing set in order to validate the predictive models using test set. we have partitioned data into 80% training data and 20% testing data.
+
+**Feature Selection**
+
+There are 160 features in the data so there is need to compress the data vertically that means dimenstionality reduction. Firstly we have removed the columns which have null or no values. After removing columns with null values we are left with 54 variables including outcome variable. Again there is need to reduce dimensions further. In order to reduce further, we have plotted variable importance plot and have taken top ten important varibales. 
+
+
+```{r echo=FALSE ,fig.height=9,fig.width=8}
+set.seed(3456)
+setwd("D:/Data Science/Coursera/Machine Learning Certification/practical machine learning/Assignment")
+train0<-read.csv("pml-training.csv",na.strings=c(""," ","NA"))
+FinalTest<- read.csv("pml-testing.csv")
+train1<-train0[,!colSums(is.na(train0))]
+train2<-train1[,!colSums(train1=="NA")]
+train<-subset(train2,select=-c(X,raw_timestamp_part_1,raw_timestamp_part_2,cvtd_timestamp,new_window,num_window))
+rm(train0)
+rm(train1)
+rm(train2)
+library(caret)
+trainIndex <- createDataPartition(train$classe, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+Train <- train[trainIndex,]
+Test  <- train[-trainIndex,]
+rm(trainIndex)
+require(randomForest)
+fit <- readRDS("fit.rds")
+rowname<-varImp(fit)
+varImpPlot(fit)
+rowname<-rowname[order(-rowname$Overall),,FALSE]
+topten<-row.names(rowname)[1:10]
+```
+
+To further inspect our varibales, we have calculated covariance of variables. The matrix for the same is given below.
+
+```{r echo=FALSE}
+cor(Train[,topten])
+```
+
+There is siginificant correlation(0.82) between roll_belt and yaw_belt variables so we need to get rid of one of them. Having seen that variable roll_belt is more important than yaw_belt so we can drop yaw_belt from our predictor variables.
+
+```{r echo=FALSE}
+topten<-topten[-2]
+FinalTest<-FinalTest[,topten]
+topten[10]<-"classe"
+Train<-Train[,topten]
+Test<-Test[,topten]
+```
+
+Now we are going to use different widely used  classification technique. First we will try random forest technique which is least prabable to introduce overfitting into model.
+
+**Random Forest**
+
+We have trained a model, random forest using caret package and predicted classe variable on test set. The confusion matrix for our prediction is given below:
+
+```{r echo=FALSE}
+library(caret)
+library(ggplot2)
+set.seed(3456)
+modFit <- randomForest(classe  ~	.,	data=Train,	ntree=100,	mtry=5)
+predictions <- predict(modFit, newdata=Test)
+confusionMat <- confusionMatrix(predictions, Test$classe)
+confusionMat
+```
+
+We have cross validated the model on test set and got the model accuracy equal to 98.11% and out of sample error equal to 1.89% . Without using bagging and with only nine predictors we have got 98% accuracy on test data. We won't go further to use any other technique or the same technique with bagging because it will make the model complex and also the time to train the model will increase. So this is our final prediction model.
+
+**Prediction**
+
+With the help of the model, we have predicted the classe variable for 20 provided test cases:
+
+```{r echo=FALSE}
+predictions1 <- predict(modFit, newdata=FinalTest)
+predictions1
+```
